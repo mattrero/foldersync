@@ -1,0 +1,12 @@
+API allowing one-way synchronization from a source to a destination folder
+
+The following details are checked to sync destination with source:
+ - new file/folder
+ - deleted file/folder
+ - type changed : from file to folder and vice versa
+ - change of file size
+ - different file modification date
+
+
+To use it, simply call method sync of class FolderSynchronizer.
+
