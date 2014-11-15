@@ -8,5 +8,4 @@ The following details are checked to sync destination with source:
  - different file modification date
 
 
-To use it, simply call method sync of class FolderSynchronizer.
-
+To use it, simply call the *sync* method of class *FolderSync*.

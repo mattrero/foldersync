@@ -17,7 +17,6 @@
 package ch.mattrero.foldersync;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
@@ -26,11 +25,19 @@ import java.util.TimeZone;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class FolderSynchronizer {
+import ch.mattrero.foldersync.impl.path.PathSynchronizer;
 
-	final Logger logger = LoggerFactory.getLogger(FolderSynchronizer.class);
+public class FolderSync {
 
-	public void sync(final Path fromDir, final Path toDir) {
+	public void sync(final Path fromDir, final Path toDir) throws IOException {
+		new PathSynchronizer().sync(fromDir, toDir);
+	}
+
+	public static void main(final String[] args) {
+		final Logger logger = LoggerFactory.getLogger(FolderSync.class);
+
+		final Path fromDir = Paths.get(args[0]);
+		final Path toDir = Paths.get(args[1]);
 
 		logger.info("Start synchronizing folders ...");
 		logger.info("  => from : {}", fromDir.toAbsolutePath());
@@ -39,8 +46,7 @@ public class FolderSynchronizer {
 		final long startDate = System.currentTimeMillis();
 
 		try {
-			Files.walkFileTree(fromDir, new SourceFolderVisitor(fromDir, toDir));
-			Files.walkFileTree(toDir, new DestinationFolderVisitor(fromDir, toDir));
+			new FolderSync().sync(fromDir, toDir);
 		} catch (final IOException e) {
 			logger.warn("Failed to sync folders " + fromDir.toAbsolutePath() + " => " + toDir.toAbsolutePath(), e);
 		}
@@ -49,9 +55,5 @@ public class FolderSynchronizer {
 		format.setTimeZone(TimeZone.getTimeZone("GMT"));
 
 		logger.info("Finished synchronizing folders in {} secs", format.format(System.currentTimeMillis() - startDate));
-	}
-
-	public static void main(final String[] args) {
-		new FolderSynchronizer().sync(Paths.get(args[0]), Paths.get(args[1]));
 	}
 }

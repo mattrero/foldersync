@@ -14,27 +14,32 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package ch.mattrero.foldersync;
+package ch.mattrero.foldersync.impl.path;
+
+import static ch.mattrero.foldersync.SyncStatus.DELETED;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 
-import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import ch.mattrero.foldersync.SyncStatus;
 
 class DestinationFolderVisitor extends SimpleFileVisitor<Path> {
 
 	final Logger logger = LoggerFactory.getLogger(DestinationFolderVisitor.class);
 
+	public PathSynchronizer pathSynchronizer;
+
 	private final Path fromDir;
 	private final Path toDir;
 
-	DestinationFolderVisitor(final Path fromDir, final Path toDir) {
+	DestinationFolderVisitor(final PathSynchronizer pathSynchronizer, final Path fromDir, final Path toDir) {
+		this.pathSynchronizer = pathSynchronizer;
 		this.fromDir = fromDir;
 		this.toDir = toDir;
 	}
@@ -45,31 +50,25 @@ class DestinationFolderVisitor extends SimpleFileVisitor<Path> {
 
 	@Override
 	public FileVisitResult preVisitDirectory(final Path toPath, final BasicFileAttributes attrs) {
-		final Path fromPath = resolveFromPath(toPath);
-
 		if (toPath.equals(toDir)) {
 			return FileVisitResult.CONTINUE;
 		}
 
+		SyncStatus status = null;
+
 		try {
-			if (!Files.exists(fromPath)) {
-				FileUtils.deleteDirectory(toPath.toFile());
-			}
+			status = pathSynchronizer.syncLevel(resolveFromPath(toPath), toPath);
 		} catch (final IOException e) {
 			logger.warn("Failed to delete directory " + toPath.toAbsolutePath(), e);
 		}
 
-		return FileVisitResult.SKIP_SUBTREE;
+		return (status == DELETED ? FileVisitResult.SKIP_SUBTREE : FileVisitResult.CONTINUE);
 	}
 
 	@Override
 	public FileVisitResult visitFile(final Path toPath, final BasicFileAttributes attrs) {
-		final Path fromPath = resolveFromPath(toPath);
-
 		try {
-			if (!Files.exists(fromPath)) {
-				Files.delete(toPath);
-			}
+			pathSynchronizer.syncLevel(resolveFromPath(toPath), toPath);
 		} catch (final IOException e) {
 			logger.warn("Failed to delete file " + toPath.toAbsolutePath(), e);
 		}
