@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package ch.mattrero.foldersync.impl.path;
+package ch.mattrero.foldersync;
 
 import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_DELETE;
@@ -26,6 +26,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchEvent.Kind;
 import java.nio.file.WatchKey;
@@ -37,68 +38,35 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ch.mattrero.foldersync.IRealTimeSynchronizer;
+public class FoldersRealTimeSynchronizer extends Thread implements IRealTimeSynchronizer {
 
-public class PathRealTimeSynchronizer extends Thread implements IRealTimeSynchronizer {
+	final Logger logger = LoggerFactory.getLogger(FoldersRealTimeSynchronizer.class);
 
-	final Logger logger = LoggerFactory.getLogger(PathRealTimeSynchronizer.class);
-
-	private final class SourceSyncAndRegisterVisitor extends SourceSyncVisitor {
-		private SourceSyncAndRegisterVisitor(final PathSynchronizer pathSynchronizer, final Path fromDir,
-				final Path toDir) {
-			super(pathSynchronizer, fromDir, toDir);
-		}
-
-		@Override
-		public FileVisitResult preVisitDirectory(final Path fromPath, final BasicFileAttributes attrs)
-				throws IOException {
-			register(fromPath);
-			super.preVisitDirectory(fromPath, attrs);
-			return FileVisitResult.CONTINUE;
-		}
-	}
-
-	private final PathSynchronizer pathSynchronizer;
-	private final SourceSyncAndRegisterVisitor syncAndRegisterVisitor;
+	private final FoldersSynchronizer foldersSynchronizer;
 
 	private final WatchService watchService;
 	private final Map<WatchKey, Path> watchKeys;
 
-	private final Path fromDir;
-	private final Path toDir;
-
 	private volatile boolean running;
 
-	public PathRealTimeSynchronizer(final Path fromDir, final Path toDir) throws IOException {
-		this.fromDir = fromDir;
-		this.toDir = toDir;
-
+	public FoldersRealTimeSynchronizer(final FoldersSynchronizer foldersSynchronizer) throws IOException {
 		this.watchKeys = new HashMap<WatchKey, Path>();
-		watchService = FileSystems.getDefault().newWatchService();
+		this.watchService = FileSystems.getDefault().newWatchService();
 
-		this.pathSynchronizer = new PathSynchronizer();
-		this.syncAndRegisterVisitor = new SourceSyncAndRegisterVisitor(pathSynchronizer, fromDir, toDir);
+		this.foldersSynchronizer = foldersSynchronizer;
 
 		this.running = false;
 	}
 
-	private void register(final Path directory) throws IOException {
-		watchKeys.put(directory.register(watchService, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY), directory);
-	}
-
-	public void syncAndRegister(final Path fromPath) throws IOException {
-		Files.walkFileTree(fromPath, syncAndRegisterVisitor);
-	}
-
-	private void init() {
-		try {
-			syncAndRegister(fromDir);
-			Files.walkFileTree(toDir, new DestinationSyncVisitor(pathSynchronizer, fromDir, toDir));
-		} catch (final IOException e) {
-			logger.warn("Failed to sync folders " + fromDir.toAbsolutePath() + " => " + toDir.toAbsolutePath(), e);
-		}
-
-		running = true;
+	public void registerTree(final Path sourceSubDir) throws IOException {
+		Files.walkFileTree(sourceSubDir, new SimpleFileVisitor<Path>() {
+			@Override
+			public FileVisitResult preVisitDirectory(final Path directory, final BasicFileAttributes attrs)
+					throws IOException {
+				watchKeys.put(directory.register(watchService, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY), directory);
+				return FileVisitResult.CONTINUE;
+			}
+		});
 	}
 
 	@SuppressWarnings("unchecked")
@@ -109,7 +77,16 @@ public class PathRealTimeSynchronizer extends Thread implements IRealTimeSynchro
 		Kind<?> kind;
 		Path fromPath;
 
-		init();
+		try {
+			foldersSynchronizer.sync();
+			registerTree(foldersSynchronizer.getSourceDir());
+		} catch (final IOException e) {
+			logger.warn(
+					"Failed to sync folders " + foldersSynchronizer.getSourceDir() + " => "
+							+ foldersSynchronizer.getBackupDir(), e);
+		}
+
+		running = true;
 
 		while (running) {
 			try {
@@ -132,20 +109,20 @@ public class PathRealTimeSynchronizer extends Thread implements IRealTimeSynchro
 					fromPath = parentDir.resolve(((WatchEvent<Path>) event).context());
 					try {
 						if (kind == ENTRY_DELETE) {
-							pathSynchronizer.syncLevel(fromPath, toDir.resolve(fromDir.relativize(fromPath)));
-						} else if (Files.isDirectory(fromPath)) {
-							syncAndRegister(fromPath);
-						} else {
-							pathSynchronizer.syncLevel(fromPath, toDir.resolve(fromDir.relativize(fromPath)));
+							foldersSynchronizer.syncDeleted(fromPath);
+						} else if (kind == ENTRY_CREATE) {
+							foldersSynchronizer.syncAdded(fromPath);
+							registerTree(fromPath);
+						} else if (!Files.isDirectory(fromPath)) { // Nothing to do if we received MODIFIED on a directory
+							foldersSynchronizer.syncModified(fromPath);
 						}
 					} catch (final IOException e) {
 						logger.warn("Failed to sync item {}" + fromPath.toAbsolutePath(), e);
 					}
 				} else {
-					logger.warn("Overflow in in the watch service for key " + parentDir.toAbsolutePath());
-					// TODO add re-browser & register of folder ?
+					logger.warn("Overflow for key " + parentDir.toAbsolutePath());
+					foldersSynchronizer.syncTree(parentDir);
 				}
-
 			}
 
 			// reset key and remove from set if directory no longer accessible
@@ -154,8 +131,7 @@ public class PathRealTimeSynchronizer extends Thread implements IRealTimeSynchro
 
 				if (watchKeys.isEmpty()) {
 					running = false;
-					logger.warn("No more directory to monitor under {})", fromDir);
-					logger.warn("RealTimeSynchronizer shutdown by itself");
+					logger.warn("Shuting down (no more directory to monitor)");
 				}
 			}
 		}
@@ -167,6 +143,7 @@ public class PathRealTimeSynchronizer extends Thread implements IRealTimeSynchro
 
 	}
 
+	@Override
 	public boolean isRunning() {
 		return running;
 	}
@@ -174,6 +151,12 @@ public class PathRealTimeSynchronizer extends Thread implements IRealTimeSynchro
 	@Override
 	public void shutdownNow() throws InterruptedException {
 		running = false;
-		this.join();
+		try {
+			this.join();
+			watchService.close();
+		} catch (final InterruptedException e) {
+			throw e;
+		} catch (final IOException e) {
+		}
 	}
 }

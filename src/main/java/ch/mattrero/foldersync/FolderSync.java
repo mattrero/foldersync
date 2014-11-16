@@ -25,37 +25,34 @@ import java.util.TimeZone;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ch.mattrero.foldersync.impl.path.PathRealTimeSynchronizer;
-import ch.mattrero.foldersync.impl.path.PathSynchronizer;
-
 public class FolderSync {
 
-	//TODO junit pour realTime
-	//TODO gérer proprement les rename
-	//TODO optimisations
-	// => créer un méchanisme qui liste toutes les anomalies et les push sur une queue ?
-	/*quand il a fini un dossier, l'indique pour que le thread de traitement commence à traiter toutes ses anomalies
-	 * sinon commencer la traitement au bout d'un certains temps (5 secs) dans le cas du realTime
-	 * 
-	 * 
-	 */
+	//TODO handle rename
 
-	public void sync(final Path fromDir, final Path toDir) throws IOException {
-		new PathSynchronizer().sync(fromDir, toDir);
+	public void sync(final Path sourceDir, final Path backupDir) {
+		new FoldersSynchronizer(sourceDir, backupDir).sync();
 	}
 
-	public IRealTimeSynchronizer realTimeSync(final Path fromDir, final Path toDir) throws IOException {
-		final PathRealTimeSynchronizer pathRealTimeSynchronizer = new PathRealTimeSynchronizer(fromDir, toDir);
-		pathRealTimeSynchronizer.start();
+	public IRealTimeSynchronizer realTimeSync(final Path sourceDir, final Path backupDir) throws IOException {
+		final FoldersRealTimeSynchronizer foldersRealTimeSynchronizer = new FoldersRealTimeSynchronizer(
+				new FoldersSynchronizer(sourceDir, backupDir));
+		foldersRealTimeSynchronizer.start();
 
-		while (!pathRealTimeSynchronizer.isRunning()) {
+		while (!foldersRealTimeSynchronizer.isRunning()) {
 			try {
 				Thread.sleep(1000);
 			} catch (final InterruptedException e) {
 			}
 		}
 
-		return pathRealTimeSynchronizer;
+		/*
+		 * call this to shutdown cleanly the thread
+		 * 
+		 * IRealTimeSynchronizer.shutdownNow();
+		 * 
+		 */
+
+		return foldersRealTimeSynchronizer;
 	}
 
 	public static void main(final String[] args) {
@@ -89,11 +86,7 @@ public class FolderSync {
 
 		final long startDate = System.currentTimeMillis();
 
-		try {
-			new FolderSync().sync(fromDir, toDir);
-		} catch (final IOException e) {
-			logger.warn("Failed to sync folders " + fromDir.toAbsolutePath() + " => " + toDir.toAbsolutePath(), e);
-		}
+		new FolderSync().sync(fromDir, toDir);
 
 		final SimpleDateFormat format = new SimpleDateFormat("HH:mm:ss:SSS");
 		format.setTimeZone(TimeZone.getTimeZone("GMT"));

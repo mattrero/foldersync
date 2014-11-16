@@ -20,4 +20,6 @@ public interface IRealTimeSynchronizer {
 
 	public void shutdownNow() throws InterruptedException;
 
+	public boolean isRunning();
+
 }

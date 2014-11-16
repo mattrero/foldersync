@@ -1,11 +1,13 @@
-API allowing one-way synchronization from a source to a destination folder
+API allowing one-way synchronization from a source to a backup folder
 
-The following details are checked to sync destination with source:
- - new file/folder
- - deleted file/folder
- - type changed : from file to folder and vice versa
- - change of file size
- - different file modification date
+To use it, you can use main class FolderSync with the following arguments.
+
+ - For a one time synchronization : 
+     <source_directory> <backup_directory>
+  
+ - For a real time synchronization :
+     -rt <source_directory> <backup_directory>
 
 
-To use it, simply call the sync method of class FolderSync.
+You can also integrate it directly in your code.
+ => In class FolderSync checks sync & realTimeSync methods.
