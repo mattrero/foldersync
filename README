@@ -10,4 +10,4 @@ To use it, you can use main class FolderSync with the following arguments.
 
 
 You can also integrate it directly in your code.
- => In class FolderSync checks sync & realTimeSync methods.
+ => In class FolderSync check sync & realTimeSync methods.
