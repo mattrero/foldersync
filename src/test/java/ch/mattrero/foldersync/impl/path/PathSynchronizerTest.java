@@ -38,6 +38,7 @@ import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
 
 import ch.mattrero.foldersync.SyncStatus;
+import ch.mattrero.foldersync.impl.path.PathSynchronizer;
 
 public class PathSynchronizerTest {
 

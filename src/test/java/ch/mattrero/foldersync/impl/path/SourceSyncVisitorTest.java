@@ -32,8 +32,9 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import ch.mattrero.foldersync.impl.path.PathSynchronizer;
+import ch.mattrero.foldersync.impl.path.SourceSyncVisitor;
 
-public class SourceFolderVisitorTest {
+public class SourceSyncVisitorTest {
 
 	@Rule
 	public TemporaryFolder testFolder = new TemporaryFolder();
@@ -59,7 +60,7 @@ public class SourceFolderVisitorTest {
 		final PathSynchronizer pathSynchronizer = mock(PathSynchronizer.class);
 
 		// When
-		Files.walkFileTree(sourceDir, new SourceFolderVisitor(pathSynchronizer, sourceDir, destinationDir));
+		Files.walkFileTree(sourceDir, new SourceSyncVisitor(pathSynchronizer, sourceDir, destinationDir));
 
 		// Then
 		verify(pathSynchronizer).syncLevel(sourceDir.resolve("file1"), destinationDir.resolve("file1"));

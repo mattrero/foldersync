@@ -29,11 +29,15 @@ import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 
 import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import ch.mattrero.foldersync.ISynchronizer;
 import ch.mattrero.foldersync.SyncStatus;
 
 public class PathSynchronizer implements ISynchronizer<Path, Path> {
+
+	final Logger logger = LoggerFactory.getLogger(PathSynchronizer.class);
 
 	private final long modifiedTimeTolerance;
 
@@ -77,8 +81,8 @@ public class PathSynchronizer implements ISynchronizer<Path, Path> {
 
 	@Override
 	public void sync(final Path fromPath, final Path toPath) throws IOException {
-		Files.walkFileTree(fromPath, new SourceFolderVisitor(this, fromPath, toPath));
-		Files.walkFileTree(toPath, new DestinationFolderVisitor(this, fromPath, toPath));
+		Files.walkFileTree(fromPath, new SourceSyncVisitor(this, fromPath, toPath));
+		Files.walkFileTree(toPath, new DestinationSyncVisitor(this, fromPath, toPath));
 	}
 
 	@Override
@@ -91,13 +95,16 @@ public class PathSynchronizer implements ISynchronizer<Path, Path> {
 
 		if (syncStatus == DELETED || syncStatus == MODIFIED) {
 			if (Files.isDirectory(toPath)) {
+				logger.debug("Deleted directory " + toPath);
 				FileUtils.deleteDirectory(toPath.toFile());
 			} else {
+				logger.debug("Deleted file " + toPath);
 				Files.delete(toPath);
 			}
 		}
 
 		if (syncStatus == ADDED || syncStatus == MODIFIED) {
+			logger.debug("Created " + toPath);
 			Files.copy(fromPath, toPath, COPY_ATTRIBUTES, REPLACE_EXISTING);
 		}
 

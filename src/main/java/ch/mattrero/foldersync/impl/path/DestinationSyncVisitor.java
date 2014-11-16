@@ -16,6 +16,8 @@
  */
 package ch.mattrero.foldersync.impl.path;
 
+import static ch.mattrero.foldersync.SyncStatus.DELETED;
+
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Path;
@@ -25,47 +27,50 @@ import java.nio.file.attribute.BasicFileAttributes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class SourceFolderVisitor extends SimpleFileVisitor<Path> {
+import ch.mattrero.foldersync.SyncStatus;
 
-	final Logger logger = LoggerFactory.getLogger(SourceFolderVisitor.class);
+class DestinationSyncVisitor extends SimpleFileVisitor<Path> {
+
+	final Logger logger = LoggerFactory.getLogger(DestinationSyncVisitor.class);
 
 	public PathSynchronizer pathSynchronizer;
 
 	private final Path fromDir;
 	private final Path toDir;
 
-	public SourceFolderVisitor(final PathSynchronizer pathSynchronizer, final Path fromDir, final Path toDir) {
+	DestinationSyncVisitor(final PathSynchronizer pathSynchronizer, final Path fromDir, final Path toDir) {
 		this.pathSynchronizer = pathSynchronizer;
 		this.fromDir = fromDir;
 		this.toDir = toDir;
 	}
 
-	private Path resolveToPath(final Path fromPath) {
-		return toDir.resolve(fromDir.relativize(fromPath));
+	private Path resolveFromPath(final Path toPath) {
+		return fromDir.resolve(toDir.relativize(toPath));
 	}
 
 	@Override
-	public FileVisitResult preVisitDirectory(final Path fromPath, final BasicFileAttributes attrs) {
-		if (fromPath.equals(fromDir)) {
+	public FileVisitResult preVisitDirectory(final Path toPath, final BasicFileAttributes attrs) {
+		if (toPath.equals(toDir)) {
 			return FileVisitResult.CONTINUE;
 		}
 
+		SyncStatus status = null;
+
 		try {
-			pathSynchronizer.syncLevel(fromPath, resolveToPath(fromPath));
+			status = pathSynchronizer.syncLevel(resolveFromPath(toPath), toPath);
 		} catch (final IOException e) {
-			logger.warn("Failed to copy directory " + fromPath.toAbsolutePath(), e);
-			return FileVisitResult.SKIP_SUBTREE;
+			logger.warn("Failed to delete directory " + toPath.toAbsolutePath(), e);
 		}
 
-		return FileVisitResult.CONTINUE;
+		return (status == DELETED ? FileVisitResult.SKIP_SUBTREE : FileVisitResult.CONTINUE);
 	}
 
 	@Override
-	public FileVisitResult visitFile(final Path fromPath, final BasicFileAttributes attrs) {
+	public FileVisitResult visitFile(final Path toPath, final BasicFileAttributes attrs) {
 		try {
-			pathSynchronizer.syncLevel(fromPath, resolveToPath(fromPath));
+			pathSynchronizer.syncLevel(resolveFromPath(toPath), toPath);
 		} catch (final IOException e) {
-			logger.warn("Failed to copy file " + fromPath.toAbsolutePath(), e);
+			logger.warn("Failed to delete file " + toPath.toAbsolutePath(), e);
 		}
 
 		return FileVisitResult.CONTINUE;

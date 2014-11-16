@@ -25,16 +25,60 @@ import java.util.TimeZone;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ch.mattrero.foldersync.impl.path.PathRealTimeSynchronizer;
 import ch.mattrero.foldersync.impl.path.PathSynchronizer;
 
 public class FolderSync {
+
+	//TODO junit pour realTime
+	//TODO gérer proprement les rename
+	//TODO optimisations
+	// => créer un méchanisme qui liste toutes les anomalies et les push sur une queue ?
+	/*quand il a fini un dossier, l'indique pour que le thread de traitement commence à traiter toutes ses anomalies
+	 * sinon commencer la traitement au bout d'un certains temps (5 secs) dans le cas du realTime
+	 * 
+	 * 
+	 */
 
 	public void sync(final Path fromDir, final Path toDir) throws IOException {
 		new PathSynchronizer().sync(fromDir, toDir);
 	}
 
+	public IRealTimeSynchronizer realTimeSync(final Path fromDir, final Path toDir) throws IOException {
+		final PathRealTimeSynchronizer pathRealTimeSynchronizer = new PathRealTimeSynchronizer(fromDir, toDir);
+		pathRealTimeSynchronizer.start();
+
+		while (!pathRealTimeSynchronizer.isRunning()) {
+			try {
+				Thread.sleep(1000);
+			} catch (final InterruptedException e) {
+			}
+		}
+
+		return pathRealTimeSynchronizer;
+	}
+
 	public static void main(final String[] args) {
 		final Logger logger = LoggerFactory.getLogger(FolderSync.class);
+
+		if (args[0].startsWith("-")) {
+			final Path fromDir = Paths.get(args[1]);
+			final Path toDir = Paths.get(args[2]);
+
+			logger.info("Starting real-time synchronizer ...");
+
+			try {
+				new FolderSync().realTimeSync(fromDir, toDir);
+			} catch (final IOException e) {
+				logger.warn(
+						"Failed to start real-time sync for folders " + fromDir.toAbsolutePath() + " => "
+								+ toDir.toAbsolutePath(), e);
+			}
+
+			logger.info("Real-time synchronizer started");
+
+			return;
+		}
 
 		final Path fromDir = Paths.get(args[0]);
 		final Path toDir = Paths.get(args[1]);

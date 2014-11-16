@@ -16,24 +16,8 @@
  */
 package ch.mattrero.foldersync;
 
-import java.io.IOException;
+public interface IRealTimeSynchronizer {
 
-public interface ISynchronizer<FROM, TO> {
-
-	public SyncStatus getSyncStatus(FROM from, TO to) throws IOException;
-
-	public void sync(FROM from, TO to) throws IOException;
-
-	/**
-	 * Synchronize at this level only.<br/>
-	 * Use {@link #sync(FROM, TO)} to sync the whole tree in depth.
-	 * 
-	 * 
-	 * @param from
-	 * @param to
-	 * @return
-	 * @throws Exception
-	 */
-	public SyncStatus syncLevel(FROM from, TO to) throws IOException;
+	public void shutdownNow() throws InterruptedException;
 
 }
