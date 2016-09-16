@@ -24,11 +24,13 @@ import static java.nio.file.StandardCopyOption.COPY_ATTRIBUTES;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -41,9 +43,18 @@ public class FoldersSynchronizer {
 	private final Path sourceDir;
 	private final Path backupDir;
 
+	private final List<String> ignored;
+
+	public FoldersSynchronizer(final Path sourceDir, final Path backupDir, List<String> ignored) {
+		this.sourceDir = sourceDir;
+		this.backupDir = backupDir;
+		this.ignored = ignored;
+	}
+	
 	public FoldersSynchronizer(final Path sourceDir, final Path backupDir) {
 		this.sourceDir = sourceDir;
 		this.backupDir = backupDir;
+		this.ignored = new ArrayList<String>();
 	}
 
 	public void sync() {
@@ -60,18 +71,26 @@ public class FoldersSynchronizer {
 		BasicFileAttributes fromAttributes = null;
 		BasicFileAttributes toAttributes = null;
 
-		try (final DirectoryStream<Path> sourceStream = Files.newDirectoryStream(sourceSubDir);
-				DirectoryStream<Path> backupStream = Files.newDirectoryStream(resolveBackupItemPath(sourceSubDir))) {
 
-			final Iterator<Path> sourceIterator = sourceStream.iterator();
-			final Iterator<Path> backupIterator = backupStream.iterator();
+		try {
+			Iterator<Path> sourceIterator = Files.list(sourceSubDir).sorted().collect(Collectors.toList()).iterator();
+			Iterator<Path> backupIterator = Files
+					.list(resolveBackupItemPath(sourceSubDir))
+					.sorted()
+					.collect(Collectors.toList())
+					.iterator();
 
 			Path sourceItem = (sourceIterator.hasNext() ? sourceIterator.next() : null);
 			Path backupItem = (backupIterator.hasNext() ? backupIterator.next() : null);
 
 			while (sourceItem != null || backupItem != null) {
+
+
 				if (sourceItem == null) {
 					status = DELETED;
+				} else if (ignored.contains(sourceItem.getFileName().toString())) {
+					sourceItem = (sourceIterator.hasNext() ? sourceIterator.next() : null);
+					continue;
 				} else if (backupItem == null) {
 					status = ADDED;
 				} else if (sourceDir.relativize(sourceItem).compareTo(backupDir.relativize(backupItem)) < 0) {

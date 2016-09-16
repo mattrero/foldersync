@@ -112,7 +112,9 @@ public class FoldersRealTimeSynchronizer extends Thread implements IRealTimeSync
 							foldersSynchronizer.syncDeleted(fromPath);
 						} else if (kind == ENTRY_CREATE) {
 							foldersSynchronizer.syncAdded(fromPath);
-							registerTree(fromPath);
+							if (Files.isDirectory(fromPath)) {
+								registerTree(fromPath);
+							}
 						} else if (!Files.isDirectory(fromPath)) { // Nothing to do if we received MODIFIED on a directory
 							foldersSynchronizer.syncModified(fromPath);
 						}

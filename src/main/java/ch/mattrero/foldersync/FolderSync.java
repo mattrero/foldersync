@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.TimeZone;
 
 import org.slf4j.Logger;
@@ -27,8 +29,10 @@ import org.slf4j.LoggerFactory;
 
 public class FolderSync {
 
-	//TODO handle rename
-
+	public void sync(final Path sourceDir, final Path backupDir, List<String> ignored) {
+		new FoldersSynchronizer(sourceDir, backupDir, ignored).sync();
+	}
+	
 	public void sync(final Path sourceDir, final Path backupDir) {
 		new FoldersSynchronizer(sourceDir, backupDir).sync();
 	}
@@ -67,9 +71,8 @@ public class FolderSync {
 			try {
 				new FolderSync().realTimeSync(fromDir, toDir);
 			} catch (final IOException e) {
-				logger.warn(
-						"Failed to start real-time sync for folders " + fromDir.toAbsolutePath() + " => "
-								+ toDir.toAbsolutePath(), e);
+				logger.warn("Failed to start real-time sync for folders " + fromDir.toAbsolutePath() + " => "
+						+ toDir.toAbsolutePath(), e);
 			}
 
 			logger.info("Real-time synchronizer started");
